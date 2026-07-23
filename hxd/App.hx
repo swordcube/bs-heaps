@@ -195,13 +195,28 @@ class App implements h3d.IDrawable {
 	function mainLoop() {
 		hxd.Timer.update();
 		sevents.checkEvents();
+		
 		if( isDisposed ) return;
 		update(hxd.Timer.dt);
 		if( isDisposed ) return;
+
 		var dt = hxd.Timer.dt; // fetch again in case it's been modified in update()
 		if( s2d != null ) s2d.setElapsedTime(dt);
 		if( s3d != null ) s3d.setElapsedTime(dt);
 		engine.render(this);
+
+		// present
+		var cur = h3d.Engine.getCurrent();
+		if( cur != null && cur.ready ) {
+			#if hl_profile
+			hl.Profile.event(-1); // pause
+			#end
+			cur.driver.present();
+			#if hl_profile
+			hl.Profile.event(0); // next frame
+			hl.Profile.event(-2); // resume
+			#end
+		}
 	}
 
 	/**
