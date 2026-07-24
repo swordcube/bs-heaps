@@ -18,6 +18,7 @@ import hxd.Math;
 	But it should be noted that in order to ensure up-to-date values, it's advised to call `Object.syncPos` before accessing them.
 **/
 @:allow(h2d.Tools)
+@:access(h2d.filter.Group)
 class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #end {
 
 	static var nullDrawable : h2d.Drawable;
@@ -93,6 +94,15 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 		When set, `Object.alpha` value affects both filter and object transparency (use `Drawable.color.a` to set transparency only for the object).
 	**/
 	public var filter(default,set) : h2d.filter.Filter;
+
+	/**
+		The post process filters for this object.
+
+		Equivelent to `Object.filter = new h2d.filter.Group([f1, f2])`
+
+		When set, `Object.alpha` value affects both filter and object transparency (use `Drawable.color.a` to set transparency only for the object).
+	**/
+	public var filters(get,set) : Array<h2d.filter.Filter>;
 
 	/**
 		The blending mode of the object.
@@ -237,6 +247,35 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 		for( o in children )
 			o.findAll(f,arr);
 		return arr;
+	}
+
+	function get_filters() : Array<h2d.filter.Filter> {
+		if( filter == null )
+			return [];
+
+		if( filter != null && Std.isOfType(filter, h2d.filter.Group) ) {
+			var group : h2d.filter.Group = cast filter;
+			return group.filters;
+		}
+		return [filter];
+	}
+
+	function set_filters(f : Array<h2d.filter.Filter>) {
+		if( f == null )
+			f = [];
+
+		if( f.length > 1 ) {
+			if( filter != null && Std.isOfType(filter, h2d.filter.Group) ) {
+				var group : h2d.filter.Group = cast filter;
+				return group.filters = f;
+			}
+			else {
+				filter = new h2d.filter.Group(f);
+				return f;
+			}
+		}
+		filter = f[0];
+		return f;
 	}
 
 	function set_filter(f : h2d.filter.Filter) {
