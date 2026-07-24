@@ -66,6 +66,13 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 	public var scaleY(default,set) : Float = 1;
 
 	/**
+	    The amount of horizontal and vertical scaling of this object, in one point.
+
+		Setting `scaleX` and `scaleY` will also work fine, and will modify this value as well.
+	 */
+	public var totalScale(default, null) : h2d.col.Point = new h2d.col.Point(1, 1); // TODO: find a better name for this?? totalScale seems off to me idk
+
+	/**
 		The rotation angle of this object, in radians.
 	**/
 	public var rotation(default, set) : Float = 0;
@@ -598,6 +605,12 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 	**/
 	@:dox(show)
 	function sync( ctx : RenderContext ) {
+		if( totalScale.x != scaleX || totalScale.y != scaleY ) {
+			scaleX = totalScale.x;
+			scaleY = totalScale.y;
+			posChanged = true;
+		}
+
 		var changed = posChanged;
 		if( changed ) {
 			calcAbsPos();
@@ -1004,11 +1017,13 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 
 	inline function set_scaleX(v) {
 		posChanged = true;
+		totalScale.x = v;
 		return scaleX = v;
 	}
 
 	inline function set_scaleY(v) {
 		posChanged = true;
+		totalScale.y = v;
 		return scaleY = v;
 	}
 
