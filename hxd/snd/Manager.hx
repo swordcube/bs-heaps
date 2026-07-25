@@ -272,7 +272,7 @@ class Manager {
 					c.sound = c.queue.shift();
 					c.duration = c.sound.getData().duration;
 				} else if (!c.loop) {
-					c.stop();
+					releaseChannel(c);
 					break;
 				}
 			}
