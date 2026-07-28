@@ -49,6 +49,11 @@ class Math {
 		return std.Math.ffloor(v * exp + .49999) * neg / exp;
 	}
 
+	public static function truncate(val:Float, decimals:Int):Float {
+        var p = Math.pow(10, decimals);
+        return Math.fround(val * p) / p;
+    }
+
 	public static inline function exp( f : Float ) {
 		return std.Math.exp(f);
 	}
