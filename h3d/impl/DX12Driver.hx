@@ -220,6 +220,9 @@ class DxFrame {
 	public var queryHeapOffset : Int;
 	public var queryBuffer : GpuResource;
 	public var bufferAllocator : BufferAllocator;
+	#if dlss
+	public var dlssFrameToken : DLSSFrameToken;
+	#end
 	public function new() {
 	}
 	public function getSize() {
@@ -703,7 +706,6 @@ class DX12Driver extends h3d.impl.Driver {
 
 	#if dlss
 	var dlssReady : Bool;
-	var dlssFrameToken : DLSSFrameToken;
 	#end
 
 	public static var COPY_BUFFER_SIZE = 256 * 1024 * 1024; // 256 Mo per frame
@@ -796,7 +798,9 @@ class DX12Driver extends h3d.impl.Driver {
 		#end
 
 		var flags = new DriverInitFlags();
-		if( DEBUG ) flags.set(DriverInitFlag.DEBUG);
+		if( DEBUG ) {
+			flags.set(DriverInitFlag.DEBUG);
+		}
 		driver = Driver.create(window, flags, DEVICE_NAME);
 		if( DEBUG ) suppressDebugMessages();
 		frames = [];
@@ -1001,7 +1005,8 @@ class DX12Driver extends h3d.impl.Driver {
 		flushHeaps();
 
 		#if dlss
-		if ( dlssReady ) dlssFrameToken = Dlss.getNewFrameToken(frameCount);
+		if ( dlssReady && frame.dlssFrameToken == null )
+			frame.dlssFrameToken = Dlss.getNewFrameToken(currentFrame);
 		#end
 	}
 
@@ -1113,6 +1118,7 @@ class DX12Driver extends h3d.impl.Driver {
 		tmp.clearValue.stencil = 0;
 		defaultDepth.t.res = Driver.createCommittedResource(tmp.heap, flags, desc, DEPTH_WRITE, tmp.clearValue);
 		defaultDepth.t.res.setName("defaultDepth");
+		defaultDepth.t.state = defaultDepth.t.targetState = DEPTH_WRITE;
 
 		beginFrame();
 	}
@@ -2366,7 +2372,7 @@ class DX12Driver extends h3d.impl.Driver {
 	}
 
 	override function disposeTexture(t:h3d.mat.Texture) {
-		if( t.lastFrame < frameCount - 1 )
+		if( t.lastFrame <= (frameCount - BUFFER_COUNT) )
 			t.t.res.release();
 		else
 			disposeResource(t.t);
@@ -3475,6 +3481,7 @@ class DX12Driver extends h3d.impl.Driver {
 		mat._41 = cast(m._41, Single); mat._42 = cast(m._42, Single); mat._43 = cast(m._43, Single); mat._44 = cast(m._44, Single);
 	}
 
+	static var dlssOptimalSettings = new DLSSOptimalSettings();
 	static var dlssSettings = new DLSSSettings();
 	static var dlssOptions = new DLSSOptions();
 	static var dlssConstants = new DLSSConstants();
@@ -3514,9 +3521,9 @@ class DX12Driver extends h3d.impl.Driver {
 		}
 		dlssOptions.outputWidth = targetWidth;
 		dlssOptions.outputHeight = targetHeight;
-		var optimalSettings = Dlss.getOptimalSettings(dlssOptions);
-		dlssSettings.optimalWidth = optimalSettings.optimalRenderWidth;
-		dlssSettings.optimalHeight = optimalSettings.optimalRenderHeight;
+		Dlss.getOptimalSettings(dlssOptions, dlssOptimalSettings);
+		dlssSettings.optimalWidth = dlssOptimalSettings.optimalRenderWidth;
+		dlssSettings.optimalHeight = dlssOptimalSettings.optimalRenderHeight;
 		return dlssSettings;
 		#else
 		return null;
@@ -3572,7 +3579,7 @@ class DX12Driver extends h3d.impl.Driver {
 			idx++;
 		}
 
-		Dlss.setTagForFrame(dlssFrameToken, dlssResources, resCount, frame.commandList);
+		Dlss.setTagForFrame(frame.dlssFrameToken, dlssResources, resCount, frame.commandList);
 
 		loadDlssMat(matCameraViewToClip, constants.cameraViewToClip);
 		loadDlssMat(matClipToCameraView, constants.clipToCameraView);
@@ -3613,8 +3620,8 @@ class DX12Driver extends h3d.impl.Driver {
 		dlssConstants.motionVectorsJittered = constants.motionVectorsJittered;
 		dlssConstants.minRelativeLinearDepthObjectSeparation = 40.0;
 
-		Dlss.setConstants(dlssFrameToken, dlssConstants);
-		Dlss.evaluateFeature(dlssFrameToken, frame.commandList, DLSSFeature.DLSS);
+		Dlss.setConstants(frame.dlssFrameToken, dlssConstants);
+		Dlss.evaluateFeature(frame.dlssFrameToken, frame.commandList, DLSSFeature.DLSS);
 
 		var arr = tmp.descriptors2;
 		arr[0] = @:privateAccess frame.srvHeap.heap;
