@@ -645,8 +645,8 @@ class Object #if (domkit && !domkit_heaps) implements domkit.Model<h2d.Object> #
 	@:dox(show)
 	function sync( ctx : RenderContext ) {
 		if( totalScale.x != scaleX || totalScale.y != scaleY ) {
-			scaleX = totalScale.x;
-			scaleY = totalScale.y;
+			@:bypassAccessor scaleX = totalScale.x;
+			@:bypassAccessor scaleY = totalScale.y;
 			posChanged = true;
 		}
 

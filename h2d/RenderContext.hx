@@ -252,6 +252,8 @@ class RenderContext extends h3d.impl.RenderContext {
 	**/
 	@:access(h2d.Camera)
 	public function pushCamera( cam : h2d.Camera ) {
+		flush();
+
 		var entry = cameraStack[cameraStackIndex++];
 		if ( entry == null ) {
 			entry = { va: 0, vb: 0, vc: 0, vd: 0, vx: 0, vy: 0, camera: null };
@@ -289,6 +291,8 @@ class RenderContext extends h3d.impl.RenderContext {
 		Restores previous viewport state prior to camera rendering, removing it from the camera stack.
 	**/
 	public function popCamera() {
+		flush();
+
 		if (cameraStackIndex == 0) throw "Too many popCamera()";
 		var inf = cameraStack[--cameraStackIndex];
 		viewA = inf.va;
