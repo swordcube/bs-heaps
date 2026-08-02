@@ -54,6 +54,10 @@ class Math {
         return Math.fround(val * p) / p;
     }
 
+	public static function remap(value:Float, start1:Float, stop1:Float, start2:Float, stop2:Float):Float {
+		return start2 + (value - start1) * ((stop2 - start2) / (stop1 - start1));
+	}
+
 	public static inline function exp( f : Float ) {
 		return std.Math.exp(f);
 	}
@@ -299,13 +303,31 @@ class Math {
 		return std.Math.random() * max;
 	}
 
+	public inline static function irandom( max = 1 ) {
+		return Std.int(std.Math.random() * max);
+	}
+
+	public inline static function randomRange( from = 0.0, to = 1.0 ) {
+		return remap(std.Math.random(), 0, 1, from, to);
+	}
+
+	public inline static function randomRangei( from = 0, to = 1 ) {
+		return Std.int(remap(std.Math.random(), 0, 1, from, to));
+	}
+
 	/**
-		Returns a signed random between -max and max (both included).
+		Returns a signed random float between -max and max (both included).
 	**/
 	public static function srand( max = 1.0 ) {
 		return (std.Math.random() - 0.5) * (max * 2);
 	}
 
+	/**
+		Returns a signed random integer between -max and max (both included).
+	**/
+	public static function srandi( max = 1 ) {
+		return Std.int((std.Math.random() - 0.5) * (max * 2));
+	}
 
 	/**
 	 * takes an int , masks it and devide so that it safely maps 0...255 to 0...1.0
