@@ -471,6 +471,7 @@ class RenderContext extends h3d.impl.RenderContext {
 		`RenderContext.popRenderZone` should be called afterwards to clear render zone stack.
 	**/
 	public function pushRenderZone( x : Float, y : Float, w : Float, h : Float ) {
+		flush();
 		var inf = renderZoneStack[renderZoneIndex++];
 		if ( inf == null ) {
 			inf = { hasRZ: hasRenderZone, x: renderX, y: renderY, w: renderW, h: renderH };
@@ -492,6 +493,7 @@ class RenderContext extends h3d.impl.RenderContext {
 		Restores previous render zone settings.
 	**/
 	public function popRenderZone() {
+		flush();
 		if (renderZoneIndex == 0) throw "Too many popRenderZone()";
 		var inf = renderZoneStack[--renderZoneIndex];
 		if (inf.hasRZ) {
@@ -563,6 +565,7 @@ class RenderContext extends h3d.impl.RenderContext {
 	}
 
 	inline function clearRZ() {
+		flush();
 		hasRenderZone = false;
 		engine.setRenderZone();
 	}
