@@ -102,6 +102,10 @@ class Math {
 		return f < min ? min : f > max ? max : f;
 	}
 
+	public static inline function wrap( f : Float, min = 0., max = 1. ) {
+		return f < min ? max : f > max ? min : f;
+	}
+
 	public static inline function pow( v : Float, p : Float ) {
 		return std.Math.pow(v,p);
 	}
@@ -168,6 +172,10 @@ class Math {
 
 	public static inline function iclamp( v : Int, min : Int, max : Int ) {
 		return v < min ? min : (v > max ? max : v);
+	}
+
+	public static inline function iwrap( v : Int, min : Int, max : Int ) {
+		return v < min ? max : (v > max ? min : v);
 	}
 
 	/**
