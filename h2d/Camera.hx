@@ -94,6 +94,8 @@ class Camera {
 	**/
 	public var followRotation : Bool = false;
 
+	public var pixelPerfectPosition: Bool = false;
+
 	var posChanged : Bool;
 
 	var viewX : Float;
@@ -224,8 +226,12 @@ class Camera {
 				matC = scaleY * -sr;
 				matD = scaleY * cr;
 			}
-			absX = Math.round(-(x * matA + y * matC) + (scene.width * anchorX * viewW) + scene.width * viewX);
-			absY = Math.round(-(x * matB + y * matD) + (scene.height * anchorY * viewH) + scene.height * viewY);
+			final newAbsX = (-(x * matA + y * matC) + (scene.width * anchorX * viewW) + scene.width * viewX);
+			final newAbsY = (-(x * matB + y * matD) + (scene.height * anchorY * viewH) + scene.height * viewY);
+
+			absX = (pixelPerfectPosition) ? Math.round(newAbsX) : newAbsX;
+			absY = (pixelPerfectPosition) ? Math.round(newAbsY) : newAbsY;
+
 			invDet = 1 / (matA * matD - matB * matC);
 			posChanged = false;
 		}
