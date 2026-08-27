@@ -365,7 +365,6 @@ class Manager {
 		// calc audible volume & virtualize inaudible channels
 		// --------------------------------------------------------------------
 
-		var c = channels;
 		for (c in channels) {
 			c.calcAudibleVolume(now);
 			if( c.isLoading && !c.sound.getData().isLoading() )
@@ -413,8 +412,7 @@ class Manager {
 		// --------------------------------------------------------------------
 		// bind non-virtual channels to sources
 		// --------------------------------------------------------------------
-
-		var c = channels;
+		
 		for (c in channels) {
 			if (c.source != null || c.isVirtual)
 				continue;
