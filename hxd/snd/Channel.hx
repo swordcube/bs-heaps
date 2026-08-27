@@ -4,6 +4,7 @@ package hxd.snd;
 class Channel extends ChannelBase {
 	static var ID = 0;
 
+	@:noCompletion public var next : Channel;
 	var manager : Manager;
 	var source : Manager.Source;
 	var id : Int;
