@@ -85,7 +85,7 @@ class Manager {
 	var resampleBytes : haxe.io.Bytes;
 
 	var driver   : Driver;
-	var channels : Channel;
+	var channels : Array<Channel>;
 	var sources  : Array<Source>;
 	var now      : Float;
 
@@ -120,6 +120,7 @@ class Manager {
 		soundBufferKeys	   = [];
 		freeStreamBuffers  = [];
 		effectGC           = [];
+		channels 		   = [];
 		soundBufferCount   = 0;
 
 		if (driver != null) {
@@ -154,38 +155,28 @@ class Manager {
 	}
 
 	public function stopAll() {
-		while( channels != null )
-			channels.stop();
+		for( c in channels )
+			c.stop();
 	}
 
 	public function stopAllNotLooping() {
-		var c = channels;
-		while( c != null ) {
-			var n = c.next;
-			if( !c.loop ) c.stop();
-			c = n;
-		}
+		for( c in channels )
+			c.stop();
 	}
 
 	public function stopByName( name : String ) {
-		var c = channels;
-		while( c != null ) {
-			var n = c.next;
+		for( c in channels )
 			if( c.soundGroup != null && c.soundGroup.name == name ) c.stop();
-			c = n;
-		}
 	}
 
 	/**
 		Returns iterator with all active instances of a Sound at the call time.
 	**/
 	public function getAll( sound : hxd.res.Sound ) : Iterator<Channel> {
-		var ch = channels;
 		var result = new Array<Channel>();
-		while ( ch != null ) {
-			if ( ch.sound == sound )
-				result.push(ch);
-			ch = ch.next;
+		for ( c in channels ) {
+			if ( c.sound == sound )
+				result.push(c);
 		}
 		return new hxd.impl.ArrayIterator(result);
 	}
@@ -239,34 +230,25 @@ class Manager {
 		c.manager      = this;
 		c.soundGroup   = soundGroup;
 		c.channelGroup = channelGroup;
-		c.next         = channels;
 		c.isLoading    = sdat.isLoading();
 		c.isVirtual    = driver == null;
 		c.lastStamp    = haxe.Timer.stamp();
 
-		channels = c;
+		channels.push(c);
 		return c;
 	}
 
 	function updateVirtualChannels(now : Float) {
-		var c = channels;
-		while (c != null) {
-			if (c.pause || !c.isVirtual || c.isLoading) {
-				c = c.next;
+		for (c in channels) {
+			if (c.pause || !c.isVirtual || c.isLoading)
 				continue;
-			}
 
 			c.position += Math.max(now - c.lastStamp, 0.0);
 			c.lastStamp = now;
 
-			var next = c.next; // save next, since we might release this channel
 			while (c.position >= c.duration) {
 				c.position -= c.duration;
 				c.onEnd();
-
-				// if we have released the next channel, let's stop here
-				if( next != null && next.manager == null )
-					next = null;
 
 				if (c.queue.length > 0) {
 					c.sound = c.queue.shift();
@@ -276,18 +258,14 @@ class Manager {
 					break;
 				}
 			}
-
-			c = next;
 		}
 	}
 
 	public function update() {
 		if( timeOffset != 0 ) {
-			var c = channels;
-			while( c != null ) {
+			for( c in channels ) {
 				c.lastStamp += timeOffset;
 				if( c.currentFade != null ) c.currentFade.start += timeOffset;
-				c = c.next;
 			}
 			for( s in sources )
 				for( b in s.buffers )
@@ -388,27 +366,28 @@ class Manager {
 		// --------------------------------------------------------------------
 
 		var c = channels;
-		while (c != null) {
+		for (c in channels) {
 			c.calcAudibleVolume(now);
 			if( c.isLoading && !c.sound.getData().isLoading() )
 				c.isLoading = false;
 			c.isVirtual = suspended || c.pause || c.mute || c.channelGroup.mute || (c.allowVirtual && c.audibleVolume < VIRTUAL_VOLUME_THRESHOLD) || c.isLoading;
-			c = c.next;
 		}
 
 		// --------------------------------------------------------------------
 		// sort channels by priority
 		// --------------------------------------------------------------------
 
-		channels = haxe.ds.ListSort.sortSingleLinked(channels, sortChannel);
+		channels.sort(sortChannel);
 
 		// --------------------------------------------------------------------
 		// virtualize sounds that puts the put the audible count over the maximum number of sources
 		// --------------------------------------------------------------------
 
 		var audibleCount = 0;
-		var c = channels;
-		while (c != null && !c.isVirtual) {
+		for(c in channels) {
+			if (c.isVirtual)
+				continue;
+			
 			if (++audibleCount > sources.length) c.isVirtual = true;
 			else if (c.soundGroup.maxAudible >= 0) {
 				if(c.soundGroup.lastUpdate != now) {
@@ -420,7 +399,6 @@ class Manager {
 					--audibleCount;
 				}
 			}
-			c = c.next;
 		}
 
 		// --------------------------------------------------------------------
@@ -437,11 +415,9 @@ class Manager {
 		// --------------------------------------------------------------------
 
 		var c = channels;
-		while (c != null) {
-			if (c.source != null || c.isVirtual) {
-				c = c.next;
+		for (c in channels) {
+			if (c.source != null || c.isVirtual)
 				continue;
-			}
 
 			// look for a free source
 			var s = null;
@@ -459,7 +435,6 @@ class Manager {
 			if( s.start < 0 ) s.start = 0;
 			queueBuffer(s, c.sound, s.start);
 			c.positionChanged = false;
-			c = c.next;
 		}
 
 		// --------------------------------------------------------------------
@@ -796,18 +771,10 @@ class Manager {
 		if( c.manager == null )
 			return;
 
-		if (channels == c) {
-			channels = c.next;
-		} else {
-			var prev = channels;
-			while (prev.next != c)
-				prev = prev.next;
-			prev.next = c.next;
-		}
+		channels.remove(c);
 
 		for (e in c.effects) c.removeEffect(e);
 		if (c.source != null) releaseSource(c.source);
-		c.next = null;
 		c.manager = null;
 		c.effects = null;
 		c.bindedEffects = null;
