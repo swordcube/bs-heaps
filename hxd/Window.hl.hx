@@ -47,6 +47,8 @@ class Window {
 	var dropFiles : Array<hxd.DropFileEvent.DroppedFile>;
 
 	public var id : Int;
+	public var x(get, never) : Int;
+	public var y(get, never) : Int;
 	public var width(get, never) : Int;
 	public var height(get, never) : Int;
 	public var mouseX(get, never) : Int;
@@ -208,6 +210,12 @@ class Window {
 		for( f in resizeEvents ) f();
 	}
 
+	public function setPosition(x: Int, y: Int) {
+		#if (hldx || hlsdl)
+		window.setPosition(x, y);
+		#end
+	}
+
 	public function addDragAndDropTarget( f : ( event : DropFileEvent ) -> Void ) : Void {
 		if (dropTargets.length == 0) {
 			#if (hlsdl >= version("1.14.0"))
@@ -257,6 +265,22 @@ class Window {
 	public function setFullScreen( v : Bool ) : Void {
 		#if (hldx || hlsdl)
 		window.displayMode = v ? Borderless : Windowed;
+		#end
+	}
+
+	function get_x() : Int {
+		#if (hlsdl || hldx)
+		return window.x;
+		#else
+		return 0;
+		#end
+	}
+
+	function get_y() : Int {
+		#if (hlsdl || hldx)
+		return window.y;
+		#else
+		return 0;
 		#end
 	}
 
@@ -786,6 +810,24 @@ class Window {
 	#if (hl_ver >= version("1.12.0"))
 	public static function getMonitors() : Array<Monitor> {
 		return [for(m in #if hldx dx.Window.getMonitors() #elseif hlsdl sdl.Sdl.getDisplays() #else [] #end) { name: m.name, width: m.right-m.left, height: m.bottom-m.top}];
+	}
+
+	public function setMaximized(maximized: Bool) : Void {
+		#if (hldx >= version("1.17.0"))
+		window.setZoomed(maximized);
+		#elseif (hlsdl >= version("1.17.0"))
+		window.setMaximized(maximized);
+		#end
+	}
+
+	public function isMaximized() : Bool {
+		#if (hldx >= version("1.17.0"))
+		return window.isZoomed();
+		#elseif (hlsdl >= version("1.17.0"))
+		return window.isMaximized();
+		#else
+		return false;
+		#end
 	}
 
 	// If registry is set, return the default DisplaySetting when it's currently modified by the application.
