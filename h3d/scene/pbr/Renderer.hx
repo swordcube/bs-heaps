@@ -629,7 +629,7 @@ class Renderer extends h3d.scene.Renderer {
 			passes.clear();
 		while( light != null ) {
 			var plight = Std.downcast(light, h3d.scene.pbr.Light);
-			if( plight != null ) {
+			if( plight != null && plight.shadows.hasStaticShadow() ) {
 				plight.shadows.setContext(ctx);
 				plight.shadows.computeStatic(passes);
 				passes.reset();
@@ -899,6 +899,9 @@ class Renderer extends h3d.scene.Renderer {
 			}
 		case Debug:
 			var defaultShadows : h3d.mat.Texture = ctx.getGlobal("mainLightShadowMap");
+			// TextureArray defaultShadows is not supported .
+			if( Std.isOfType(defaultShadows, h3d.mat.TextureArray) )
+				defaultShadows = null;
 			var prev = slides.shader.shadowMap;
 			var shadowMap = defaultShadows;
 			if( debugShadowMapIndex < 0 )
@@ -911,11 +914,16 @@ class Renderer extends h3d.scene.Renderer {
 					if( pl != null && pl.shadows != null ) {
 						var cl = Std.downcast(pl.shadows, h3d.pass.CascadeShadowMap);
 						if ( cl != null ) {
-							for ( tex in cl.getShadowTextures() ) {
-								if ( tex != null && tex != defaultShadows ) {
+							var cascades = cl.getShadowTex();
+							if ( cascades != null && cascades != defaultShadows ) {
+								for ( layer in 0...cascades.layerCount ) {
 									k--;
-									shadowMap = tex;
-									if ( k == 0 ) break;
+									if ( k == 0 ) {
+										var tex = ctx.textures.allocTarget("debugCascade", cascades.width, cascades.height, false, R32F);
+										h3d.pass.Copy.ArrayCopy.run(cascades, layer, tex);
+										shadowMap = tex;
+										break;
+									}
 								}
 							}
 							if ( k == 0 ) break;
