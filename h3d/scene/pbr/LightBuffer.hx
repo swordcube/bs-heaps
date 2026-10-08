@@ -9,6 +9,7 @@ class LightBuffer {
 	var useBindless : Bool;
 	var useDynamicSamplerIndex : Bool;
 	public var shadowHandles : Array<h3d.mat.TextureHandle> = [];
+	public var tightShadowSamplers = #if js true #else false #end;
 
 	var MAX_DIR_SHADOW = 1;
 	var MAX_SPOT_SHADOW = 2;
@@ -50,7 +51,10 @@ class LightBuffer {
 
 	public var clusterMaxDistance = 0.;
 	public var enableClustering = true;
+	public var enableClusterHZB = true;
 	var cullShader : h3d.shader.pbr.ClusterCull;
+	var occlusionShader : h3d.shader.pbr.ClusterCull.ClusterLightOcclusion;
+	var lightVisibleBuffer : h3d.Buffer;
 	var clusterBuffer : h3d.Buffer;
 
 	// Camera of the last built clusters, for createClusterDebug
@@ -111,12 +115,12 @@ class LightBuffer {
 			s.clusterData = defaultForwardShader.clusterData;
 			s.clusterZParams = defaultForwardShader.clusterZParams;
 		}
+		s.HAS_CASCADE = defaultForwardShader.HAS_CASCADE;
 		s.MAX_DIR_SHADOW_COUNT = defaultForwardShader.MAX_DIR_SHADOW_COUNT;
 		s.MAX_POINT_SHADOW_COUNT = defaultForwardShader.MAX_POINT_SHADOW_COUNT;
 		s.MAX_SPOT_SHADOW_COUNT = defaultForwardShader.MAX_SPOT_SHADOW_COUNT;
 		s.MAX_CAPSULE_SHADOW_COUNT = defaultForwardShader.MAX_CAPSULE_SHADOW_COUNT;
 		s.MAX_RECT_SHADOW_COUNT = defaultForwardShader.MAX_RECT_SHADOW_COUNT;
-		s.CASCADE_COUNT = defaultForwardShader.CASCADE_COUNT;
 
 		for( i in 0 ... defaultForwardShader.MAX_POINT_SHADOW_COUNT )
 			s.pointShadowMaps[i] = defaultForwardShader.pointShadowMaps[i];
@@ -210,6 +214,8 @@ class LightBuffer {
 		}
 
 		inline function addLight<T:Light>( l : T, list : Array<T>, shadowList : Array<T>, maxShadow : Int, stride : Int, shadowStride : Int ) {
+			if( l.getIntensity() == 0.0 )
+				return;
 			var shadowed = hasShadow(l) && (useBindless || shadowList.length < maxShadow);
 			var need = stride + (useBindless && shadowed ? shadowStride : 0);
 			if( curSize + need <= budget ) {
@@ -277,7 +283,6 @@ class LightBuffer {
 		s.pointLightCount = 0;
 		s.spotLightCount = 0;
 		s.dirLightCount = 0;
-		s.CASCADE_COUNT = 0;
 		s.CLUSTERED = false;
 
 		inline function shadowParam( shadows : h3d.pass.Shadows ) {
@@ -436,7 +441,7 @@ class LightBuffer {
 			var cl = capsuleLightsShadow[li];
 			fillCapsule((capsuleLightOffset + li * CAPSULE_LIGHT_STRIDE) << 2, cl);
 			var si = (capsuleShadowOffset + li * CUBE_SHADOW_STRIDE) << 2;
-			fillShadowCommon(si, cl.shadows, cl.range + cl.length);
+			fillShadowCommon(si, cl.shadows, cl.range + cl.length * 0.5);
 			var tex = cl.shadows.getShadowTex();
 			if( !fillShadowTex(si, 4, tex) ) continue;
 			if( !useBindless ) s.capsuleShadowMaps[li] = tex;
@@ -492,7 +497,6 @@ class LightBuffer {
 			fillVector(lightInfos, pbr.lightDir, i+4);
 			lightInfos[i+7] = cascadeShadow.transitionFraction;
 			s.cascadeShadowMaps = cascadeShadow.getShadowTex();
-			s.CASCADE_COUNT = cascadeShadow.cascade;
 			var mat = cascadeShadow.cascadeViewProj;
 			fillFloats(lightInfos, mat._11, mat._21, mat._31, mat._41, i+8);
 			fillFloats(lightInfos, mat._12, mat._22, mat._32, mat._42, i+12);
@@ -508,18 +512,21 @@ class LightBuffer {
 		s.spotLightCount = spotLights.length;
 		s.capsuleLightCount = capsuleLights.length;
 		s.rectLightCount = rectLights.length;
-		s.MAX_DIR_SHADOW_COUNT = MAX_DIR_SHADOW;
-		s.MAX_POINT_SHADOW_COUNT = MAX_POINT_SHADOW;
-		s.MAX_SPOT_SHADOW_COUNT = MAX_SPOT_SHADOW;
-		s.MAX_CAPSULE_SHADOW_COUNT = MAX_CAPSULE_SHADOW;
-		s.MAX_RECT_SHADOW_COUNT = MAX_RECT_SHADOW;
+		s.HAS_CASCADE = cascadeLight != null;
+		var tight = tightShadowSamplers && !useBindless;
+		s.DYNAMIC_SAMPLER_INDEX = useDynamicSamplerIndex && !tight;
+		s.MAX_DIR_SHADOW_COUNT = tight ? dirLightsShadow.length : MAX_DIR_SHADOW;
+		s.MAX_POINT_SHADOW_COUNT = tight ? pointLightsShadow.length : MAX_POINT_SHADOW;
+		s.MAX_SPOT_SHADOW_COUNT = tight ? spotLightsShadow.length : MAX_SPOT_SHADOW;
+		s.MAX_CAPSULE_SHADOW_COUNT = tight ? capsuleLightsShadow.length : MAX_CAPSULE_SHADOW;
+		s.MAX_RECT_SHADOW_COUNT = tight ? rectLightsShadow.length : MAX_RECT_SHADOW;
 		s.dirShadowCount = dirLightsShadow.length;
 		s.pointShadowCount = pointLightsShadow.length;
 		s.spotShadowCount = spotLightsShadow.length;
 		s.capsuleShadowCount = capsuleLightsShadow.length;
 		s.rectShadowCount = rectLightsShadow.length;
 		s.lightInfos.uploadFloats(lightInfos, 0, s.lightInfos.vertices, 0);
-		cull(ctx);
+		cull(ctx, pbrRenderer);
 		pointLights.resize(0);
 		spotLights.resize(0);
 		dirLights.resize(0);
@@ -544,7 +551,7 @@ class LightBuffer {
 		}
 	}
 
-	function cull( ctx : h3d.scene.RenderContext ) {
+	function cull( ctx : h3d.scene.RenderContext, renderer : Renderer ) {
 		var engine = h3d.Engine.getCurrent();
 		if( !enableClustering || !engine.driver.hasFeature(ComputeShaders) )
 			return;
@@ -575,6 +582,37 @@ class LightBuffer {
 		c.clusterNear = near;
 		c.clusterFarOverNear = far / near;
 		c.clusterLastSliceFar = clusterMaxDistance > 0 ? 1e30 : far;
+		c.USE_HZB = enableClusterHZB;
+		c.USE_OCCLUSION = enableClusterHZB;
+		if( enableClusterHZB ) {
+			var hzb = renderer.buildHZB(!cam.reverseDepth, "ClusterHZB");
+			c.hzb = hzb;
+			c.hzbSize.set(hzb.width, hzb.height);
+
+			if( lightVisibleBuffer == null || lightVisibleBuffer.isDisposed() )
+				lightVisibleBuffer = new h3d.Buffer(BUFFER_MAX_SIZE, hxd.BufferFormat.INDEX32, [UniformBuffer, ReadWriteBuffer]);
+			if( occlusionShader == null )
+				occlusionShader = new h3d.shader.pbr.ClusterCull.ClusterLightOcclusion();
+			var o = occlusionShader;
+			o.lightInfos = s.lightInfos;
+			o.lightVisible = lightVisibleBuffer;
+			o.hzb = hzb;
+			o.hzbSize.set(hzb.width, hzb.height);
+			o.pointLightOffset = s.pointLightOffset;
+			o.pointCount = s.pointShadowCount + s.pointLightCount;
+			o.spotLightOffset = s.spotLightOffset;
+			o.spotCount = s.spotShadowCount + s.spotLightCount;
+			o.capsuleLightOffset = s.capsuleLightOffset;
+			o.capsuleCount = s.capsuleShadowCount + s.capsuleLightCount;
+			o.rectLightOffset = s.rectLightOffset;
+			o.rectCount = s.rectShadowCount + s.rectLightCount;
+			ctx.computeDispatch(o, Math.ceil(total / 64));
+
+			c.lightVisible = lightVisibleBuffer;
+			c.spotSlot = o.pointCount;
+			c.capsuleSlot = o.pointCount + o.spotCount;
+			c.rectSlot = o.pointCount + o.spotCount + o.capsuleCount;
+		}
 		c.pointLightOffset = s.pointLightOffset;
 		c.pointStart = useBindless ? 0 : s.pointShadowCount;
 		c.pointEnd = s.pointShadowCount + s.pointLightCount;
@@ -661,6 +699,10 @@ class LightBuffer {
 		if( clusterBuffer != null ) {
 			clusterBuffer.dispose();
 			clusterBuffer = null;
+		}
+		if( lightVisibleBuffer != null ) {
+			lightVisibleBuffer.dispose();
+			lightVisibleBuffer = null;
 		}
 	}
 }

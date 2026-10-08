@@ -191,7 +191,7 @@ class PbrLights extends BenchApp {
 		capsule.radius = 0.5;
 		capsule.range = 30;
 		capsule.power = 4.5;
-		capsule.shadows.bias = 0.0001;
+		capsule.shadows.bias = 0.1;
 
 		var rect = new h3d.scene.pbr.RectangleLight(s3d);
 		rect.setPosition(-25, 10, 12);
@@ -417,9 +417,8 @@ class PbrLights extends BenchApp {
 	}
 
 	static function main() {
-		#if hlsdl
-		h3d.impl.GlDriver.enableComputeShaders();
-		#end
+		h3d.impl.Driver.requestFeature(ComputeShaders);
+		h3d.impl.Driver.requestFeature(Bindless);
 		h3d.mat.MaterialSetup.current = new h3d.mat.PbrMaterialSetup();
 		new PbrLights();
 	}
