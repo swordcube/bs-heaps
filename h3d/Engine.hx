@@ -89,6 +89,8 @@ class Engine {
 		setCurrent();
 		#if macro
 		driver = new h3d.impl.NullDriver();
+		#elseif (js && dx12)
+		driver = h3d.impl.DX12Driver.inst ?? new h3d.impl.DX12Driver();
 		#elseif (js || hlsdl || usegl)
 		#if (hlsdl && heaps_vulkan)
 		if( hxd.Window.USE_VULKAN )
@@ -448,6 +450,7 @@ class Engine {
 
 	public function dispose() {
 		driver.dispose();
+		driver.removeEngine(this);
 		window.removeResizeEvent(onWindowResize);
 		if ( mem != null )
 			mem.dispose();
