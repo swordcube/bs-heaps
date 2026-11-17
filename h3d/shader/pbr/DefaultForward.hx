@@ -1,6 +1,6 @@
 package h3d.shader.pbr;
 
-class DefaultForward extends hxsl.Shader {
+class DefaultForwardBase extends hxsl.Shader {
 
 	static var SRC = {
 		@:extends h3d.shader.ShadowSampling;
@@ -169,11 +169,6 @@ class DefaultForward extends hxsl.Shader {
 				result = direct * lightColor * NdL;
 			}
 			return result;
-		}
-
-		function __init__fragment() {
-			pbrSpecularColor = vec3(0.04);
-			albedoGamma = pixelColor.rgb * pixelColor.rgb; // gamma correct
 		}
 
 		function init() {
@@ -391,8 +386,8 @@ class DefaultForward extends hxsl.Shader {
 
 						var blendFactor = cascadeBlendFactor(viewZ, scale.w, transitionFraction);
 						if( blendFactor > 0.0 ) {
-							if( c < MAX_CASCADE_COUNT - 1 ) {
-								var nextScale = lightInfos[5 + 2 * (c + 1)];
+							var nextScale = lightInfos[5 + 2 * min(c + 1, MAX_CASCADE_COUNT - 1)];
+							if( c < MAX_CASCADE_COUNT - 1 && nextScale.w > 0.0 ) {
 								var nextOffset = lightInfos[6 + 2 * (c + 1)];
 								var nextShadowPos = cascadeShadowPos(shadowPos0, nextScale.xyz, nextOffset.xyz);
 								var nextShadow = sampleCascadeArray(cascadeShadowMaps, c + 1, nextShadowPos, 0.0, shadowParam, shadowParam, transformedPosition, samplingMode);
@@ -511,6 +506,18 @@ class DefaultForward extends hxsl.Shader {
 			lightAccumulation += emissive * emissivePower * pixelColor.rgb;
 
 			return lightAccumulation;
+		}
+
+	};
+}
+
+class DefaultForward extends DefaultForwardBase {
+
+	static var SRC = {
+
+		function __init__fragment() {
+			pbrSpecularColor = vec3(0.04);
+			albedoGamma = pixelColor.rgb * pixelColor.rgb; // gamma correct
 		}
 
 		function fragment() {

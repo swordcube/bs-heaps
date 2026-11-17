@@ -200,6 +200,7 @@ class RenderContext extends h3d.impl.RenderContext {
 		pixelSize = getCurrentPixelSize();
 		setCamera(scene.camera);
 		numViews = 1;
+		currentView.idx = 0;
 		if( streamingFeedback != null ) streamingFeedback.begin();
 	}
 
@@ -273,16 +274,9 @@ class RenderContext extends h3d.impl.RenderContext {
 		for ( s in computeLink )
 			s.updateConstants(globals);
 		var rt = hxsl.Cache.get().link(computeLink, Compute);
-		// upload buffers
-		engine.driver.selectShader(rt);
-		var buf = shaderBuffers;
-		buf.grow(rt);
-		fillGlobals(buf, rt);
-		engine.uploadShaderBuffers(buf, Globals);
-		fillParams(buf, rt, computeLink, true);
-		engine.uploadInstanceShaderBuffers(buf);
-		engine.driver.computeDispatch(x,y,z, barrier);
-		@:privateAccess engine.dispatches++;
+		engine.selectShader(rt);
+		if( !engine.shaderFailed && h3d.impl.RenderError.guard(uploadComputeParams(rt), Params(rt)) )
+			engine.computeDispatch(x, y, z, barrier);
 		if ( computeLink == tmpComputeLink )
 			tmpComputeLink.s = null;
 		computeLink = null;
@@ -291,6 +285,15 @@ class RenderContext extends h3d.impl.RenderContext {
 			done();
 			if( prev != null ) prev.setCurrent();
 		}
+	}
+
+	function uploadComputeParams( rt : hxsl.RuntimeShader ) {
+		var buf = shaderBuffers;
+		buf.grow(rt);
+		fillGlobals(buf, rt);
+		engine.uploadShaderBuffers(buf, Globals);
+		fillParams(buf, rt, computeLink, true);
+		engine.uploadInstanceShaderBuffers(buf);
 	}
 
 	public function emitLight( l : Light ) {

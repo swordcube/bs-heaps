@@ -1,6 +1,6 @@
 package h3d.impl;
 
-#if (hldx && !dx12)
+#if (hldx && !dx12 && !hlvk)
 
 import h3d.impl.Driver;
 import dx.Driver;
@@ -258,7 +258,7 @@ class DirectXDriver extends h3d.impl.Driver {
 		if( extraDepthInst != null ) @:privateAccess {
 			extraDepthInst.width = width;
 			extraDepthInst.height = height;
-			if( extraDepthInst.t != null ) disposeDepthBuffer(extraDepthInst);
+			disposeTexture(extraDepthInst);
 			extraDepthInst.t = allocDepthBuffer(extraDepthInst);
 		}
 	}
@@ -361,15 +361,6 @@ class DirectXDriver extends h3d.impl.Driver {
 		var depthView = Driver.createDepthStencilView(depth,D24_UNORM_S8_UINT, false);
 		var readOnlyDepthView = Driver.createDepthStencilView(depth, D24_UNORM_S8_UINT, true);
 		return { res : depth, view : srv, depthView : depthView, readOnlyDepthView : readOnlyDepthView, rt : null };
-	}
-
-	override function disposeDepthBuffer(b:h3d.mat.Texture) @:privateAccess {
-		var d = b.t;
-		b.t = null;
-		d.depthView.release();
-		d.readOnlyDepthView.release();
-		d.view.release();
-		d.res.release();
 	}
 
 	override function captureRenderBuffer( pixels : hxd.Pixels ) {
@@ -482,6 +473,8 @@ class DirectXDriver extends h3d.impl.Driver {
 		if( tt == null ) return;
 		t.t = null;
 		if( tt.view != null ) tt.view.release();
+		if( tt.depthView != null ) tt.depthView.release();
+		if( tt.readOnlyDepthView != null ) tt.readOnlyDepthView.release();
 		if( tt.res != null ) tt.res.release();
 		if( tt.views != null )
 			for( v in tt.views )

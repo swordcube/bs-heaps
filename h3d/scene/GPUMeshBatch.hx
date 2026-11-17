@@ -35,7 +35,7 @@ class GPUMeshBatch extends MeshBatch {
 	public function new(primitive, ?material, ?parent) {
 		super(primitive, material, parent);
 
-		#if ((js || hldx) && !dx12)
+		#if ((js || hldx) && !dx12 && !hlvk)
 		throw "Not available on this platform";
 		#end
 
@@ -274,7 +274,10 @@ class GPUMeshBatch extends MeshBatch {
 			if ( gpuCullingEnabled )
 				computeShader.frustum = ctx.getCameraFrustumBuffer();
 			computeShader.meshLodScale = ctx.meshLodScale;
-			computeShader.instanceData = dataPasses.buffers[0];
+			var instanceData = dataPasses.buffers[0];
+			computeShader.instanceData = instanceData;
+			computeShader.instanceStride = instanceData.format.strideBytes >> 4;
+			computeShader.modelViewPos = instanceData.format.calculateInputOffset("modelView__m0") >> 4;
 			computeShader.commandBuffer = commandBuffer;
 			gpuCounter.reset();
 			computeShader.countBuffer = gpuCounter.buffer;
@@ -299,7 +302,7 @@ class GPUMeshBatch extends MeshBatch {
 	}
 
 	inline function isCountBufferAllowed() {
-		#if hlsdl
+		#if (hlsdl && !hlvk)
 		return h3d.impl.GlDriver.hasMultiIndirectCount;
 		#else
 		return true;

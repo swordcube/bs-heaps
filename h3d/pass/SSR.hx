@@ -21,7 +21,6 @@ class SSR implements h3d.impl.RendererFX {
 	public var ssrResolve : h3d.pass.ScreenFx<h3d.shader.pbr.SSR.SSRResolve>;
 	var ssrFilter :  h3d.pass.ScreenFx<h3d.shader.pbr.SSR.SSRFilter>;
 	var ssrShader : h3d.shader.pbr.SSR;
-	var copyPass : h3d.pass.Copy;
 
 	public function new() {
 		ssrResolve = new h3d.pass.ScreenFx(new h3d.shader.pbr.SSR.SSRResolve());
@@ -29,12 +28,12 @@ class SSR implements h3d.impl.RendererFX {
 		ssrFilter.shader.invSize = new h3d.Vector();
 		ssrShader = new h3d.shader.pbr.SSR();
 		ssrShader.screenSize = new h3d.Vector();
-		copyPass = new h3d.pass.Copy();
 	}
 
 	public function apply( r : h3d.scene.pbr.Renderer ) {
 		var ctx = r.ctx;
 		r.mark("SSR");
+		ctx.engine.driver.beginEvent("SSR");
 
 		var hdr = r.textures.hdr;
 		var normal = r.textures.normal;
@@ -51,8 +50,7 @@ class SSR implements h3d.impl.RendererFX {
 		var ssrMipLevels = r.allocTarget("SSRMipLevels", false, 1.0, R8, [Writable]);
 		var ssrDebug : h3d.mat.Texture = null;
 
-		ssrTargetCopy.filter = Nearest;
-		ssrTargetCopy.mipMap = Nearest;
+		ssrTarget.filter = ssrTargetCopy.filter = Linear;
 
 		ssrShader.DEBUG = debugEnabled;
 		if ( debugEnabled ) {
@@ -85,11 +83,6 @@ class SSR implements h3d.impl.RendererFX {
 		ssrShader.ORTHOGONAL = ctx.camera.orthoBounds != null;
 		ctx.computeDispatch(ssrShader, Std.int((width + 8 - 1) / 8), Std.int((height + 8 - 1) / 8));
 
-		copyPass.shader.texture = ssrTarget;
-		ctx.engine.pushTarget(ssrTargetCopy);
-		copyPass.render();
-		ctx.engine.popTarget();
-
 		var curWidth = width;
 		var curHeight = height;
 		var mipLevels = ssrTarget.mipLevels;
@@ -97,8 +90,9 @@ class SSR implements h3d.impl.RendererFX {
 		// This means that we cannot bind a mip and use a different one as target.
 		// For now, we use a copy as workaround.
 		for ( lvl in 1...mipLevels ) {
-			var source = lvl & 1 == 0 ? ssrTargetCopy : ssrTarget;
-			var target = lvl & 1 == 0 ? ssrTarget : ssrTargetCopy;
+			var odd = lvl & 1 == 1;
+			var source = odd ? ssrTarget : ssrTargetCopy;
+			var target = odd ? ssrTargetCopy : ssrTarget;
 			ssrFilter.shader.ssrColor = source;
 			ssrFilter.shader.invSize.set(1.0/curWidth, 1.0/curHeight);
 			ssrFilter.shader.mipLevel = lvl;
@@ -107,14 +101,8 @@ class SSR implements h3d.impl.RendererFX {
 			ssrFilter.render();
 			ctx.engine.popTarget();
 
-			if ( target == ssrTargetCopy ) {
-				ssrTargetCopy.startingMip = lvl;
-				h3d.pass.Copy.run(ssrTargetCopy, ssrTarget, None, null, 0, lvl);
-			}
-			ssrTarget.startingMip = lvl;
-			ctx.engine.pushTarget(ssrTargetCopy, 0, lvl);
-			copyPass.render();
-			ctx.engine.popTarget();
+			if ( odd )
+				h3d.pass.Copy.run(ssrTargetCopy, ssrTarget, None, null, 0, lvl, lvl);
 			curWidth >>= 1;
 			curHeight >>= 1;
 		}
@@ -130,6 +118,7 @@ class SSR implements h3d.impl.RendererFX {
 
 		if ( debugEnabled )
 			h3d.pass.Copy.run(ssrDebug, hdr, Alpha);
+		ctx.engine.driver.endEvent();
 	}
 
 	public function start( r : h3d.scene.Renderer ) {

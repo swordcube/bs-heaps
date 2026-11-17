@@ -14,7 +14,7 @@ class Texture {
 		The default texture color format
 	**/
 	public static var nativeFormat(default,never) : TextureFormat =
-		#if (usesys && !hldx && !hlsdl && !usegl && !macro)
+		#if (usesys && !hlvk && !hldx && !hlsdl && !usegl && !macro)
 			haxe.GraphicsDriver.nativeFormat
 		#else
 			RGBA
@@ -523,6 +523,23 @@ class Texture {
 		return t;
 	}
 
+	static var cubeFaceMatrices = [
+		h3d.Matrix.L([0,0,-1,0, 0,-1,0,0, 1,0,0,0]),
+		h3d.Matrix.L([0,0,1,0, 0,-1,0,0, -1,0,0,0]),
+		h3d.Matrix.L([1,0,0,0, 0,0,1,0, 0,1,0,0]),
+		h3d.Matrix.L([1,0,0,0, 0,0,-1,0, 0,-1,0,0]),
+		h3d.Matrix.L([1,0,0,0, 0,-1,0,0, 0,0,1,0]),
+		h3d.Matrix.L([-1,0,0,0, 0,-1,0,0, 0,0,-1,0]),
+	];
+
+	/**
+		Returns the matrix transforming `vec3(uv * 2 - 1, 1)` into the direction of the given cube face.
+		The matrix is shared and must not be modified.
+	**/
+	public static function getCubeFaceMatrix( face : Int ) {
+		return cubeFaceMatrices[face];
+	}
+
 	/**
 		Returns a checker texture of size x size, than can be repeated
 	**/
@@ -563,25 +580,25 @@ class Texture {
 	}
 
 	static function allocNoise( t : h3d.mat.Texture, size : Int ) {
-		var b = new hxd.BitmapData(size, size);
+		var p = hxd.Pixels.alloc(size, size, RGBA);
 		for( x in 0...size )
 			for( y in 0...size ) {
 				var n = Std.random(256);
-				b.setPixel(x, y, 0xFF000000 | n | (n << 8) | (n << 16));
+				p.setPixel(x, y, 0xFF000000 | n | (n << 8) | (n << 16));
 			}
-		t.uploadBitmap(b);
-		b.dispose();
+		t.uploadPixels(p);
+		p.dispose();
 	}
 
 	static function allocChecker( t : h3d.mat.Texture, size : Int ) {
-		var b = new hxd.BitmapData(size, size);
-		b.clear(0xFFFFFFFF);
+		var p = hxd.Pixels.alloc(size, size, RGBA);
+		p.clear(0xFFFFFFFF);
 		for( x in 0...size>>1 )
 			for( y in 0...size>>1 ) {
-				b.setPixel(x, y, 0xFF000000);
-				b.setPixel(x+(size>>1), y+(size>>1), 0xFF000000);
+				p.setPixel(x, y, 0xFF000000);
+				p.setPixel(x+(size>>1), y+(size>>1), 0xFF000000);
 			}
-		t.uploadBitmap(b);
-		b.dispose();
+		t.uploadPixels(p);
+		p.dispose();
 	}
 }

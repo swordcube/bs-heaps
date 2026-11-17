@@ -238,7 +238,7 @@ class System {
 
 		var but = new hl.UI.Button(f, "Exit");
 		but.onClick = function() {
-			Sys.exit(0);
+			Sys.exit(1);
 		};
 
 		while( hl.UI.loop(true) != Quit )
@@ -358,6 +358,8 @@ class System {
 	public static function getDeviceName() : String {
 		#if usesys
 		return haxe.System.name;
+		#elseif hlvk
+		return "PC/" + vk.Vk.getDeviceName();
 		#elseif hlsdl
 		return "PC/" + sdl.Sdl.getDevices()[0];
 		#elseif (hldx && dx12)
